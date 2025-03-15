@@ -35,7 +35,7 @@
     "react-native-web": "^0.19.10",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
-    "three": "^0.174.0"
+    "three": "^0.174.0",
   "react": "^19.0.0",
   "react-dom": "^19.0.0",
   "react-native-web": "^19.0.0",
