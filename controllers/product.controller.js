@@ -109,9 +109,6 @@ export const createProduct = [
             return res.status(403).json({ message: "Customers are not allowed to create products" });
         }
 
-        console.log("req.body", req.body);
-        console.log("req.file", req.file);
-
         const {
             name,
             description,
@@ -151,9 +148,9 @@ export const createProduct = [
             designer: req.user._id,
             category,
             tags: tags ? tags.split(',') : [],
-            sizes: sizes ? sizes.split(',') : [],
-            colors: colors ? colors.split(',') : [],
-            materials: materials ? materials.split(',') : [],
+            sizes: typeof sizes === 'string' ? sizes.split(',') : [],
+            colors: typeof colors === 'string' ? colors.split(',') : [],
+            materials: typeof materials === 'string' ? materials.split(',') : [],
             isCustomizable: isCustomizable === 'true', // checking for value before set
             customizationOptions,
         });
