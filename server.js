@@ -119,7 +119,11 @@ mongoose.connect(process.env.MONGODB_URI)
         });
     })
     .catch(error => {
-        console.error("MongoDB connection error:", error);
+       console.error("MongoDB connection error:", error.message); // Log detailed error message
+       console.error("MongoDB connection error:", error);
+
+        // Optionally, you might want to handle the error more gracefully, such as sending an error response to the client or retrying the connection:
+        // res.status(500).send("Failed to connect to MongoDB. Please check the server logs.");
     });
 
 export default app;
