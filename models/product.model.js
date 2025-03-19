@@ -37,7 +37,7 @@ import mongoose from "mongoose"
  *           description: Reference to the designer/vendor
  *         category:
  *           type: string
- *           enum: [dresses, tops, bottoms, outerwear, accessories, footwear, other]
+ *    
  *           description: Product category
  *         tags:
  *           type: array
@@ -54,16 +54,12 @@ import mongoose from "mongoose"
  *               quantity:
  *                 type: number
  *           description: Available sizes and stock quantity
- *         colors:
- *           type: array
- *           items:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               hexCode:
- *                 type: string
- *           description: Available colors
+ *       colors:
+  type: array
+  items:
+    type: string
+  description: Available color names 
+
  *         materials:
  *           type: array
  *           items:
