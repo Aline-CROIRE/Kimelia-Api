@@ -74,7 +74,7 @@ const router = express.Router()
  *       200:
  *         description: List of products
  *   post:
- *     summary: Create a product (designer only)
+ *     summary: Create a product (designer, seller, admin)
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
@@ -128,7 +128,7 @@ const router = express.Router()
  *       401:
  *         description: Not authorized
  *       403:
- *         description: Not authorized as a designer
+ *         description: Not authorized as a designer, seller, or admin
  */
 router.route("/").get(getProducts).post(protect, designer, createProduct)
 
@@ -163,7 +163,7 @@ router.get("/top", getTopProducts)
  *       404:
  *         description: Product not found
  *   put:
- *     summary: Update a product (designer only)
+ *     summary: Update a product (designer, seller, admin)
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
@@ -222,7 +222,7 @@ router.get("/top", getTopProducts)
  *       404:
  *         description: Product not found
  *   delete:
- *     summary: Delete a product (designer only)
+ *     summary: Delete a product (designer, seller, admin)
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
@@ -245,47 +245,4 @@ router.get("/top", getTopProducts)
  */
 router.route("/:id").get(getProductById).put(protect, designer, updateProduct).delete(protect, designer, deleteProduct)
 
-/**
- * @swagger
- * /api/products/{id}/reviews:
- *   post:
- *     summary: Create a product review
- *     tags: [Products]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         schema:
- *           type: string
- *         required: true
- *         description: Product ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - rating
- *             properties:
- *               rating:
- *                 type: number
- *                 minimum: 1
- *                 maximum: 5
- *               review:
- *                 type: string
- *     responses:
- *       201:
- *         description: Review added
- *       400:
- *         description: Product already reviewed
- *       401:
- *         description: Not authorized
- *       404:
- *         description: Product not found
- */
-router.post("/:id/reviews", protect, createProductReview)
-
 export default router
-

@@ -37,6 +37,7 @@ const protect = asyncHandler(async (req, res, next) => {
     }
 });
 
+// Admin role check
 const admin = (req, res, next) => {
     if (!req.user) {
         return res.status(401).json({ message: "Not authorized, no user" }); // Require user
@@ -49,15 +50,16 @@ const admin = (req, res, next) => {
     }
 };
 
+// Designer, Seller, or Admin role check
 const designer = (req, res, next) => {
     if (!req.user) {
         return res.status(401).json({ message: "Not authorized, no user" }); // Require user
     }
 
-    if (req.user.role === "designer" || req.user.role === "admin") {
+    if (req.user.role === "designer" || req.user.role === "seller" || req.user.role === "admin") {
         next();
     } else {
-        res.status(403).json({ message: "Not authorized as a designer" });
+        res.status(403).json({ message: "Not authorized as a designer, seller, or admin" });
     }
 };
 
