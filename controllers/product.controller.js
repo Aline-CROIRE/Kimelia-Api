@@ -99,11 +99,16 @@ export const getProductById = asyncHandler(async (req, res) => {
 /**
  * @desc    Create a product
  * @route   POST /api/products
- * @access  Private/Designer
+ * @access  Private/Designer/Admin/Seller (Not customer)
  */
 export const createProduct = [
     upload.single('image'), // 'image' should match the field name in your FormData
     asyncHandler(async (req, res) => {
+        // Role-based access control: Disallow customers from creating products
+        if (req.user.role === 'customer') {
+            return res.status(403).json({ message: "Customers are not allowed to create products" });
+        }
+
         console.log("req.body", req.body);
         console.log("req.file", req.file);
 
@@ -145,7 +150,7 @@ export const createProduct = [
             images: imageUrls,    // Store the array of image URLs
             designer: req.user._id,
             category,
-            tags: tags ? tags.split(',') : [], // splitting to create array
+            tags: tags ? tags.split(',') : [],
             sizes: sizes ? sizes.split(',') : [],
             colors: colors ? colors.split(',') : [],
             materials: materials ? materials.split(',') : [],
@@ -161,17 +166,25 @@ export const createProduct = [
 /**
  * @desc    Update a product
  * @route   PUT /api/products/:id
- * @access  Private/Designer
+ * @access  Private/Designer/Admin/Seller (Not customer)
  */
 export const updateProduct = asyncHandler(async (req, res) => {
+    // Disallow customers from updating any product
+    if (req.user.role === 'customer') {
+        return res.status(403).json({ message: "Customers are not allowed to update products" });
+    }
+
     const product = await Product.findById(req.params.id);
 
     if (!product) {
         return res.status(404).json({ message: "Product not found" });
     }
 
-    // Check if the user is the designer of the product or an admin
-    if (product.designer.toString() !== req.user._id.toString() && req.user.role !== "admin") {
+    // Only allow if user is the product designer, seller, or an admin
+    if (
+        (product.designer.toString() !== req.user._id.toString() && req.user.role !== "admin") &&
+        req.user.role !== "seller"
+    ) {
         return res.status(403).json({ message: "Not authorized to update this product" });
     }
 
@@ -186,16 +199,25 @@ export const updateProduct = asyncHandler(async (req, res) => {
 /**
  * @desc    Delete a product
  * @route   DELETE /api/products/:id
- * @access  Private/Designer
+ * @access  Private/Designer/Admin/Seller (Not customer)
  */
 export const deleteProduct = asyncHandler(async (req, res) => {
+    // Disallow customers from deleting products
+    if (req.user.role === 'customer') {
+        return res.status(403).json({ message: "Customers are not allowed to delete products" });
+    }
+
     const product = await Product.findById(req.params.id);
 
     if (!product) {
         return res.status(404).json({ message: "Product not found" });
     }
 
-    if (product.designer.toString() !== req.user._id.toString() && req.user.role !== "admin") {
+    // Only allow if user is the product designer, seller, or an admin
+    if (
+        (product.designer.toString() !== req.user._id.toString() && req.user.role !== "admin") &&
+        req.user.role !== "seller"
+    ) {
         return res.status(403).json({ message: "Not authorized to delete this product" });
     }
 
