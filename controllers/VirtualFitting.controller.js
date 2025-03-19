@@ -1,20 +1,21 @@
-import VirtualFitting from "../models/VirtualFitting.model.js";
-import User from "../models/user.model.js";
-import Product from "../models/product.model.js";
-import CustomDesign from "../models/customDesign.model.js";
-import { createBodyModel } from "../services/3dModelService.js";
-import { generateVirtualTryOn } from "../services/virtualTryOnService.js";
-import cloudinary from "../config/cloudinary.js";
-import fs from "fs";
-import path from "path";
-import { fileURLToFilename, fileURLToPath } from "url";
-import { dirname } from "path";
-import * as THREE from "three";
-import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
-import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
+import VirtualFitting from "../models/VirtualFitting.model.js"
+import User from "../models/user.model.js"
+import Product from "../models/product.model.js"
+import CustomDesign from "../models/customDesign.model.js"
+import { createBodyModel } from "../services/3dModelService.js"
+import { generateVirtualTryOn } from "../services/virtualTryOnService.js"
+import cloudinary from "../config/cloudinary.js"
+import fs from "fs"
+import path from "path"
+import { fileURLToPath } from "url"
+import { dirname } from "path"
+import * as THREE from "three"
+import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js"
+import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js"
 
-const __filename = fileURLToFilename(import.meta.url);
-const __dirname = dirname(__filename);
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+
 
 /**
  * @desc    Upload user photo for virtual fitting
