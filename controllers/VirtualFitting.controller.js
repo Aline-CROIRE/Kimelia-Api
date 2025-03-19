@@ -1,21 +1,20 @@
-import VirtualFitting from "../models/VirtualFitting.model.js"
-import User from "../models/user.model.js"
-import Product from "../models/product.model.js"
-import CustomDesign from "../models/customDesign.model.js"
-import { createBodyModel } from "../services/3dModelService.js"
-import { generateVirtualTryOn } from "../services/virtualTryOnService.js"
-import cloudinary from "../config/cloudinary.js"
-import fs from "fs"
-import path from "path"
-import { fileURLToPath } from "url"
-import { dirname } from "path"
-import * as THREE from "three"
-import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js"
-import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js"
+import VirtualFitting from "../models/VirtualFitting.model.js";
+import User from "../models/user.model.js";
+import Product from "../models/product.model.js";
+import CustomDesign from "../models/customDesign.model.js";
+import { createBodyModel } from "../services/3dModelService.js";
+import { generateVirtualTryOn } from "../services/virtualTryOnService.js";
+import cloudinary from "../config/cloudinary.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+import * as THREE from "three";
+import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
+import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 /**
  * @desc    Upload user photo for virtual fitting
@@ -171,23 +170,19 @@ export const getVirtualFittingProfile = async (req, res) => {
  */
 export const tryOnProduct = async (req, res) => {
   try {
-    const { productId, customDesignId, size, color } = req.body;
+    const { productId, customDesignId, size, color, userImage, measurements } =
+      req.body;
 
-    // Previously, it checked if both are missing. Now it won't.
-    //if (!productId && !customDesignId) {
-    //  return res.status(400).json({ message: "Product ID or Custom Design ID is required" });
-    //}
+    if (!productId && !customDesignId) {
+      return res
+        .status(400)
+        .json({ message: "Product ID or Custom Design ID is required" });
+    }
 
-    // Get user's virtual fitting profile
-    const virtualFitting = await VirtualFitting.findOne({
-      user: req.user._id,
-    });
-
-    if (!virtualFitting) {
-      return res.status(404).json({
-        message:
-          "Virtual fitting profile not found. Please upload a photo first.",
-      });
+    if (!userImage || !measurements) {
+      return res
+        .status(400)
+        .json({ message: "User image and measurements are required" });
     }
 
     let product = null;
@@ -195,6 +190,65 @@ export const tryOnProduct = async (req, res) => {
     let fittingResult = {};
     let fittingImage = "";
     let tryOnModelUrl = "";
+
+    // Generate 3D body model directly from request data (temporary)
+    let imageUrl = userImage;
+    if (userImage.startsWith("data:image")) {
+      const uploadResponse = await cloudinary.uploader.upload(userImage, {
+        folder: `virtual-fitting/temp/${Date.now()}`, // Use a temporary folder
+        resource_type: "image",
+      });
+      imageUrl = uploadResponse.secure_url;
+    }
+
+    const parsedMeasurements = JSON.parse(measurements);
+
+    const bodyModelData = await createBodyModel(imageUrl, parsedMeasurements);
+
+    // Simulate temporary file creation (adjust to your actual implementation)
+    const modelFileName = `temp_user_body_model_${Date.now()}.glb`;
+    const modelPath = path.join(__dirname, "../public/models", modelFileName); //Store in memory or temp directory?
+
+    // Convert bodyModelData to GLB file
+    const scene = new THREE.Scene();
+
+    // Create a basic humanoid mesh from measurements
+    const geometry = createHumanoidGeometry(parsedMeasurements);
+    const material = new THREE.MeshStandardMaterial({ color: 0xdddddd });
+    const bodyMesh = new THREE.Mesh(geometry, material);
+    scene.add(bodyMesh);
+
+    // Add texture from user image
+    if (imageUrl) {
+      const textureLoader = new THREE.TextureLoader();
+      const texture = textureLoader.load(imageUrl);
+      material.map = texture;
+    }
+
+    // Add lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(0, 1, 1);
+    scene.add(directionalLight);
+
+    // Export scene to GLB
+    const exporter = new GLTFExporter();
+    exporter.parse(
+      scene,
+      (gltf) => {
+        const buffer = Buffer.from(JSON.stringify(gltf));
+        fs.writeFileSync(modelPath, buffer);
+      },
+      { binary: true }
+    );
+
+    const modelUrl = `/models/${modelFileName}`; // Or generate a temporary URL
+
+    const temporaryBodyModel = {
+      modelData: bodyModelData,
+      modelUrl: modelUrl,
+    };
 
     //The following if-else block is modified to allow cases where neither productId nor customDesignId are provided.
     if (productId) {
@@ -208,7 +262,7 @@ export const tryOnProduct = async (req, res) => {
 
       // Generate virtual try-on by combining user body model with product model
       const tryOnResult = await generateVirtualTryOn(
-        virtualFitting.bodyModel,
+        temporaryBodyModel,
         productModel,
         size
       );
@@ -246,7 +300,7 @@ export const tryOnProduct = async (req, res) => {
 
       fittingImage = uploadResponse.secure_url;
       fittingResult = calculateFittingResult(
-        virtualFitting,
+        temporaryBodyModel,
         product,
         size
       );
@@ -268,7 +322,7 @@ export const tryOnProduct = async (req, res) => {
 
       // Generate virtual try-on by combining user body model with custom design model
       const tryOnResult = await generateVirtualTryOn(
-        virtualFitting.bodyModel,
+        temporaryBodyModel,
         customDesignModel
       );
 
@@ -305,7 +359,7 @@ export const tryOnProduct = async (req, res) => {
 
       fittingImage = uploadResponse.secure_url;
       fittingResult = calculateFittingResultForCustomDesign(
-        virtualFitting,
+        temporaryBodyModel,
         customDesign
       );
     } else {
@@ -325,19 +379,6 @@ export const tryOnProduct = async (req, res) => {
       fittingImage = "No Image Available";
       tryOnModelUrl = "No Model Available";
     }
-
-    // Add to try-on history
-    const tryOnEntry = {
-      product: productId || null,
-      customDesign: customDesignId || null,
-      fittingResult,
-      fittingImage,
-      tryOnModelUrl,
-      fittingNotes: `Virtual try-on completed on ${new Date().toLocaleDateString()}`,
-    };
-
-    virtualFitting.fittedProducts.push(tryOnEntry);
-    await virtualFitting.save();
 
     res.json({
       success: true,
@@ -364,6 +405,11 @@ export const tryOnProduct = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error", error: error.message });
+  } finally {
+      //Cleanup
+      if (fs.existsSync(modelPath)) {
+          fs.unlinkSync(modelPath);
+      }
   }
 };
 
@@ -753,106 +799,106 @@ function getSizeScale(size) {
 }
 
 // Helper function to calculate fitting result
-function calculateFittingResult(virtualFitting, product, size) {
-  const userMeasurements = virtualFitting.measurements;
-  const productMeasurements = product.measurements || {};
+function calculateFittingResult(temporaryBodyModel, product, size) {
+    const userMeasurements = temporaryBodyModel.modelData
+    const productMeasurements = product.measurements || {};
 
-  // Get size-specific measurements
-  const sizeIndex = product.sizes.findIndex((s) => s.size === size);
-  const sizeMeasurements =
-    sizeIndex >= 0 ? product.sizes[sizeIndex].measurements || {} : {};
+    // Get size-specific measurements
+    const sizeIndex = product.sizes.findIndex((s) => s.size === size);
+    const sizeMeasurements =
+        sizeIndex >= 0 ? product.sizes[sizeIndex].measurements || {} : {};
 
-  // Combine product measurements with size-specific adjustments
-  const finalProductMeasurements = {
-    ...productMeasurements,
-    ...sizeMeasurements,
-  };
+    // Combine product measurements with size-specific adjustments
+    const finalProductMeasurements = {
+        ...productMeasurements,
+        ...sizeMeasurements,
+    };
 
-  // Calculate fit scores for different body parts
-  const fitScores = {
-    shoulders: calculateFitScore(
-      userMeasurements.shoulders,
-      finalProductMeasurements.shoulders
-    ),
-    bust: calculateFitScore(
-      userMeasurements.bust,
-      finalProductMeasurements.bust
-    ),
-    waist: calculateFitScore(
-      userMeasurements.waist,
-      finalProductMeasurements.waist
-    ),
-    hips: calculateFitScore(
-      userMeasurements.hips,
-      finalProductMeasurements.hips
-    ),
-    length: calculateFitScore(
-      userMeasurements.height,
-      finalProductMeasurements.length
-    ),
-  };
+    // Calculate fit scores for different body parts
+    const fitScores = {
+        shoulders: calculateFitScore(
+            userMeasurements.shoulders,
+            finalProductMeasurements.shoulders
+        ),
+        bust: calculateFitScore(
+            userMeasurements.bust,
+            finalProductMeasurements.bust
+        ),
+        waist: calculateFitScore(
+            userMeasurements.waist,
+            finalProductMeasurements.waist
+        ),
+        hips: calculateFitScore(
+            userMeasurements.hips,
+            finalProductMeasurements.hips
+        ),
+        length: calculateFitScore(
+            userMeasurements.height,
+            finalProductMeasurements.length
+        ),
+    };
 
-  // Calculate overall fit score (weighted average)
-  const weights = {
-    shoulders: 0.15,
-    bust: 0.25,
-    waist: 0.25,
-    hips: 0.25,
-    length: 0.1,
-  };
+    // Calculate overall fit score (weighted average)
+    const weights = {
+        shoulders: 0.15,
+        bust: 0.25,
+        waist: 0.25,
+        hips: 0.25,
+        length: 0.1,
+    };
 
-  let overallScore = 0;
-  let totalWeight = 0;
+    let overallScore = 0;
+    let totalWeight = 0;
 
-  for (const [part, score] of Object.entries(fitScores)) {
-    if (score !== null) {
-      overallScore += score * weights[part];
-      totalWeight += weights[part];
+    for (const [part, score] of Object.entries(fitScores)) {
+        if (score !== null) {
+            overallScore += score * weights[part];
+            totalWeight += weights[part];
+        }
     }
-  }
 
-  const finalScore =
-    totalWeight > 0 ? Math.round(overallScore / totalWeight) : 85;
+    const finalScore =
+        totalWeight > 0 ? Math.round(overallScore / totalWeight) : 85;
 
-  // Determine overall fit category
-  let fit = "perfect";
-  if (finalScore < 70) fit = "poor";
-  else if (finalScore < 80) fit = "tight";
-  else if (finalScore < 90) fit = "good";
+    // Determine overall fit category
+    let fit = "perfect";
+    if (finalScore < 70) fit = "poor";
+    else if (finalScore < 80) fit = "tight";
+    else if (finalScore < 90) fit = "good";
 
-  // Determine size recommendation
-  let sizeRecommendation = size;
-  if (finalScore < 75) {
-    // Suggest a larger size
-    const sizeOptions = ["XS", "S", "M", "L", "XL", "XXL"];
-    const currentSizeIndex = sizeOptions.indexOf(size);
-    if (currentSizeIndex < sizeOptions.length - 1) {
-      sizeRecommendation = sizeOptions[currentSizeIndex + 1];
+    // Determine size recommendation
+    let sizeRecommendation = size;
+    if (finalScore < 75) {
+        // Suggest a larger size
+        const sizeOptions = ["XS", "S", "M", "L", "XL", "XXL"];
+        const currentSizeIndex = sizeOptions.indexOf(size);
+        if (currentSizeIndex < sizeOptions.length - 1) {
+            sizeRecommendation = sizeOptions[currentSizeIndex + 1];
+        }
+    } else if (finalScore > 95) {
+        // Suggest a smaller size
+        const sizeOptions = ["XS", "S", "M", "L", "XL", "XXL"];
+        const currentSizeIndex = sizeOptions.indexOf(size);
+        if (currentSizeIndex > 0) {
+            sizeRecommendation = sizeOptions[currentSizeIndex - 1];
+        }
     }
-  } else if (finalScore > 95) {
-    // Suggest a smaller size
-    const sizeOptions = ["XS", "S", "M", "L", "XL", "XXL"];
-    const currentSizeIndex = sizeOptions.indexOf(size);
-    if (currentSizeIndex > 0) {
-      sizeRecommendation = sizeOptions[currentSizeIndex - 1];
-    }
-  }
 
-  // Generate fit details descriptions
-  const fitDetails = {
-    shoulders: getFitDescription(fitScores.shoulders),
-    bust: getFitDescription(fitScores.bust),
-    waist: getFitDescription(fitScores.waist),
-    hips: getFitDescription(fitScores.hips),
-    length: getFitDescription(fitScores.length),
-  };
+    // Generate fit details descriptions
+    const fitDetails = {
+        shoulders: getFitDescription(fitScores.shoulders),
+        bust: getFitDescription(fitScores.bust),
+        waist: getFitDescription(fitScores.waist),
+        hips: getFitDescription(fitScores.hips),
+        length: getFitDescription(fitScores.length),
+    };
 
-  return {
-    fit,
-    sizeRecommendation,
-    fitScore: finalScore,
-    fitDetails,
-  };
+    return {
+        fit,
+        sizeRecommendation,
+        fitScore: finalScore,
+        fitDetails,
+    };
 }
 
 // Helper function to calculate fit score for a specific measurement
@@ -884,20 +930,20 @@ function getFitDescription(score) {
 }
 
 // Helper function to calculate fitting result for custom designs
-function calculateFittingResultForCustomDesign(virtualFitting, customDesign) {
-  // For custom designs, the fit should be better since it's made to measure
-  return {
-    fit: "perfect",
-    sizeRecommendation: "Custom",
-    fitScore: 95,
-    fitDetails: {
-      shoulders: "Perfect fit",
-      bust: "Perfect fit",
-      waist: "Perfect fit",
-      hips: "Perfect fit",
-      length: "Perfect fit",
-    },
-  };
+function calculateFittingResultForCustomDesign(temporaryBodyModel, customDesign) {
+    // For custom designs, the fit should be better since it's made to measure
+    return {
+        fit: "perfect",
+        sizeRecommendation: "Custom",
+        fitScore: 95,
+        fitDetails: {
+            shoulders: "Perfect fit",
+            bust: "Perfect fit",
+            waist: "Perfect fit",
+            hips: "Perfect fit",
+            length: "Perfect fit",
+        },
+    };
 }
 
 export { calculateFittingResult, calculateFittingResultForCustomDesign };
