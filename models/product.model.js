@@ -1,4 +1,4 @@
-import mongoose from "mongoose"
+import mongoose from "mongoose";
 
 /**
  * @swagger
@@ -37,7 +37,6 @@ import mongoose from "mongoose"
  *           description: Reference to the designer/vendor
  *         category:
  *           type: string
- *    
  *           description: Product category
  *         tags:
  *           type: array
@@ -54,12 +53,11 @@ import mongoose from "mongoose"
  *               quantity:
  *                 type: number
  *           description: Available sizes and stock quantity
- *       colors:
-  type: array
-  items:
-    type: string
-  description: Available color names 
-
+ *         colors:
+ *           type: array
+ *           items:
+ *             type: string
+ *           description: Available color names
  *         materials:
  *           type: array
  *           items:
@@ -134,7 +132,7 @@ const productSchema = new mongoose.Schema(
     category: {
       type: String,
       required: true,
-      enum: ["dresses", "tops", "bottoms", "outerwear", "accessories", "footwear", "other"],
+  
     },
     tags: [
       {
@@ -152,10 +150,9 @@ const productSchema = new mongoose.Schema(
         },
       },
     ],
-    colors: [
+    colors: [  // Modified Schema to array of strings
       {
-        name: String,
-        hexCode: String,
+        type: String,
       },
     ],
     materials: [
@@ -228,4 +225,3 @@ productSchema.pre("save", function (next) {
 const Product = mongoose.model("Product", productSchema)
 
 export default Product
-
