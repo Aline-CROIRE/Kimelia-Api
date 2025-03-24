@@ -1,10 +1,20 @@
-import VirtualFitting from "../models/VirtualFitting.js"; // Adjust path if needed
-import Product from "../models/Product.js"; // Adjust path if needed
-import CustomDesign from "../models/CustomDesign.js"; // Adjust path if needed
-import cloudinary from "../config/cloudinary.js"; // Adjust path if needed
-import * as THREE from 'three'; // You might need to install three: npm install three
-import path from 'path';
-import fs from 'fs';
+import VirtualFitting from "../models/VirtualFitting.model.js"
+import User from "../models/user.model.js"
+import Product from "../models/product.model.js"
+import CustomDesign from "../models/customDesign.model.js"
+import { createBodyModel } from "../services/3dModelService.js"
+import { generateVirtualTryOn } from "../services/virtualTryOnService.js"
+import cloudinary from "../config/cloudinary.js"
+import fs from "fs"
+import path from "path"
+import { fileURLToPath } from "url"
+import { dirname } from "path"
+import * as THREE from "three"
+import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js"
+import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js"
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 /**
  * @desc    Try on a product virtually
