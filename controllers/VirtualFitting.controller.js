@@ -1,20 +1,26 @@
-import VirtualFitting from "../models/VirtualFitting.model.js"
-import User from "../models/user.model.js"
-import Product from "../models/product.model.js"
-import CustomDesign from "../models/customDesign.model.js"
-import { createBodyModel } from "../services/3dModelService.js"
-import { generateVirtualTryOn } from "../services/virtualTryOnService.js"
-import cloudinary from "../config/cloudinary.js"
-import fs from "fs"
-import path from "path"
-import { fileURLToPath } from "url"
-import { dirname } from "path"
-import * as THREE from "three"
-import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js"
-import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js"
+import VirtualFitting from "../models/VirtualFitting.model.js";
+import User from "../models/user.model.js";
+import Product from "../models/product.model.js";
+import CustomDesign from "../models/customDesign.model.js";
+import { createBodyModel } from "../services/3dModelService.js";
+import { generateVirtualTryOn } from "../services/virtualTryOnService.js";
+import cloudinary from "../config/cloudinary.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+import * as THREE from "three";
+import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
+import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
+import { loadProductModel } from "../services/loadProductModel.service.js";
+import { loadCustomDesignModel } from "../services/loadCustomDesignModel.service.js";
+import { renderTryOnImage } from "../services/renderTryOnImage.service.js";
+import { calculateFittingResult } from "../services/calculateFittingResult.service.js";
+import { calculateFittingResultForCustomDesign } from "../services/calculateFittingResultForCustomDesign.service.js";
+import { getSizeScale } from "../services/getSizeScale.service.js";
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 /**
  * @desc    Try on a product virtually
@@ -62,7 +68,7 @@ export const tryOnProduct = async (req, res) => {
       const tryOnResult = await generateVirtualTryOn(virtualFitting.bodyModel, productModel, size);
 
       if (!tryOnResult) {
-          return res.status(500).json({ message: "Failed to generate virtual try-on for product" });
+        return res.status(500).json({ message: "Failed to generate virtual try-on for product" });
       }
 
       // Save the combined model and generate image as before
@@ -108,41 +114,41 @@ export const tryOnProduct = async (req, res) => {
       }
 
       // Process custom design as before
-      const customDesignModel = await loadCustomDesignModel(customDesign, size, color);  // Assuming you have such a function
+      const customDesignModel = await loadCustomDesignModel(customDesign, size, color); // Assuming you have such a function
 
       const tryOnResult = await generateVirtualTryOn(virtualFitting.bodyModel, customDesignModel, size);
 
       if (!tryOnResult) {
-          return res.status(500).json({ message: "Failed to generate virtual try-on for custom design" });
+        return res.status(500).json({ message: "Failed to generate virtual try-on for custom design" });
       }
-       // Save the combined model and generate image as before
-       const tryOnFileName = `tryon_${req.user._id}_custom_${customDesignId}_${Date.now()}.glb`;
-       const tryOnPath = path.join(__dirname, "../public/tryons", tryOnFileName);
+      // Save the combined model and generate image as before
+      const tryOnFileName = `tryon_${req.user._id}_custom_${customDesignId}_${Date.now()}.glb`;
+      const tryOnPath = path.join(__dirname, "../public/tryons", tryOnFileName);
 
-       // Ensure directory exists
-       if (!fs.existsSync(path.dirname(tryOnPath))) {
-         fs.mkdirSync(path.dirname(tryOnPath), { recursive: true });
-       }
+      // Ensure directory exists
+      if (!fs.existsSync(path.dirname(tryOnPath))) {
+        fs.mkdirSync(path.dirname(tryOnPath), { recursive: true });
+      }
 
-       fs.writeFileSync(tryOnPath, Buffer.from(tryOnResult.modelData));
-       tryOnModelUrl = `/tryons/${tryOnFileName}`;
+      fs.writeFileSync(tryOnPath, Buffer.from(tryOnResult.modelData));
+      tryOnModelUrl = `/tryons/${tryOnFileName}`;
 
-       // Generate 2D image of the try-on
-       const tryOnImageBuffer = await renderTryOnImage(tryOnResult.scene);
-       const tryOnImagePath = path.join(
-         __dirname,
-         "../public/tryons",
-         `tryon_${req.user._id}_custom_${customDesignId}_${Date.now()}.jpg`
-       );
-       fs.writeFileSync(tryOnImagePath, tryOnImageBuffer);
+      // Generate 2D image of the try-on
+      const tryOnImageBuffer = await renderTryOnImage(tryOnResult.scene);
+      const tryOnImagePath = path.join(
+        __dirname,
+        "../public/tryons",
+        `tryon_${req.user._id}_custom_${customDesignId}_${Date.now()}.jpg`
+      );
+      fs.writeFileSync(tryOnImagePath, tryOnImageBuffer);
 
-       // Upload try-on image to cloudinary
-       const uploadResponse = await cloudinary.uploader.upload(tryOnImagePath, {
-         folder: `virtual-fitting/${req.user._id}/tryons`,
-         resource_type: "image",
-       });
+      // Upload try-on image to cloudinary
+      const uploadResponse = await cloudinary.uploader.upload(tryOnImagePath, {
+        folder: `virtual-fitting/${req.user._id}/tryons`,
+        resource_type: "image",
+      });
 
-       fittingImage = uploadResponse.secure_url;
+      fittingImage = uploadResponse.secure_url;
 
       fittingResult = calculateFittingResultForCustomDesign(virtualFitting, customDesign);
     } else {
@@ -155,9 +161,9 @@ export const tryOnProduct = async (req, res) => {
       // Generate virtual try-on with default garment
       const tryOnResult = await generateVirtualTryOn(virtualFitting.bodyModel, defaultGarment);
 
-        if (!tryOnResult) {
-            return res.status(500).json({ message: "Failed to generate virtual try-on with default garment" });
-        }
+      if (!tryOnResult) {
+        return res.status(500).json({ message: "Failed to generate virtual try-on with default garment" });
+      }
 
       // Save the model and generate image
       const tryOnFileName = `tryon_${req.user._id}_default_${Date.now()}.glb`;
@@ -199,7 +205,7 @@ export const tryOnProduct = async (req, res) => {
           waist: "Standard fit",
           hips: "Standard fit",
           length: "Standard fit",
-        }
+        },
       };
     }
 
@@ -224,17 +230,17 @@ export const tryOnProduct = async (req, res) => {
         tryOnModelUrl,
         product: product
           ? {
-              _id: product._id,
-              name: product.name,
-              images: product.images,
-            }
+            _id: product._id,
+            name: product.name,
+            images: product.images,
+          }
           : null,
         customDesign: customDesign
           ? {
-              _id: customDesign._id,
-              name: customDesign.name,
-              designImages: customDesign.designImages,
-            }
+            _id: customDesign._id,
+            name: customDesign.name,
+            designImages: customDesign.designImages,
+          }
           : null,
       },
     });
@@ -246,15 +252,15 @@ export const tryOnProduct = async (req, res) => {
 
 // Helper function to process uploaded image
 async function processUploadedImage(imageFile, userId) {
-    let imagePath;
+  let imagePath;
 
-    if (imageFile.path) {
-        imagePath = imageFile.path; // Path from multer
-    } else if (typeof imageFile === 'string') {
-        imagePath = imageFile;  // Assuming it's already a path
-    } else {
-        return null;  // Or throw an error
-    }
+  if (imageFile.path) {
+    imagePath = imageFile.path; // Path from multer
+  } else if (typeof imageFile === 'string') {
+    imagePath = imageFile;  // Assuming it's already a path
+  } else {
+    return null;  // Or throw an error
+  }
 
   // Upload to cloudinary
   const uploadResponse = await cloudinary.uploader.upload(imagePath, {
@@ -285,61 +291,4 @@ function createDefaultGarment(size = "M", color = "#000000") {
     type: "top",
     size: size,
   };
-}
-
-// DUMMY IMPLEMENTATIONS - REPLACE WITH YOUR ACTUAL LOGIC
-
-async function loadProductModel(product, size, color) {
-    // Replace with code to load the actual 3D model for the product
-    // This is a DUMMY implementation
-    console.log(`Loading product model for product ${product._id}, size ${size}, color ${color}`);
-    return { modelData: 'dummy product model data', type: 'product' }; // Replace with actual model data
-}
-
-async function loadCustomDesignModel(customDesign, size, color) {
-    // Replace with code to load the 3D model for the custom design
-    // This is a DUMMY implementation
-    console.log(`Loading custom design model for design ${customDesign._id}, size ${size}, color ${color}`);
-    return { modelData: 'dummy custom design model data', type: 'custom' }; // Replace with actual model data
-}
-
-async function generateVirtualTryOn(bodyModel, garmentModel, size) {
-    // Replace with code to combine the body model and garment model to create a virtual try-on
-    // This is a DUMMY implementation
-    console.log(`Generating virtual try-on with body model ${bodyModel}, garment model type ${garmentModel.type}, size ${size}`);
-    return { modelData: 'dummy try-on model data', scene: 'dummy scene data' }; // Replace with actual model data and scene
-}
-
-async function renderTryOnImage(scene) {
-    // Replace with code to render a 2D image of the try-on
-    // This is a DUMMY implementation
-    console.log('Rendering try-on image from scene');
-    return Buffer.from('dummy image data'); // Replace with actual image data
-}
-
-function calculateFittingResult(virtualFitting, product, size) {
-    // Replace with code to calculate the fitting result
-    // This is a DUMMY implementation
-    console.log(`Calculating fitting result for product ${product._id}, size ${size}`);
-    return { fit: 'Good', sizeRecommendation: size || 'M' }; // Replace with actual fitting result
-}
-
-function calculateFittingResultForCustomDesign(virtualFitting, customDesign) {
-    // Replace with code to calculate the fitting result for the custom design
-    // This is a DUMMY implementation
-    console.log(`Calculating fitting result for custom design ${customDesign._id}`);
-    return { fit: 'Perfect', sizeRecommendation: 'Custom' }; // Replace with actual fitting result
-}
-
-function getSizeScale(size) {
-    // Replace with code to get the size scale based on the provided size
-    // This is a DUMMY implementation
-    switch (size.toUpperCase()) {
-        case "XS": return 0.8;
-        case "S": return 0.9;
-        case "M": return 1.0;
-        case "L": return 1.1;
-        case "XL": return 1.2;
-        default: return 1.0; // Default to M
-    }
 }
