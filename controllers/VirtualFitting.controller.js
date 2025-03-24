@@ -23,6 +23,72 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 /**
+ * @desc    Upload user photo for virtual fitting
+ * @route   POST /api/virtual-fitting/upload
+ * @access  Private
+ */
+export const uploadUserPhoto = async (req, res) => {
+    try {
+        const { userImage, measurements } = req.body; // Get image data and measurements from req.body
+
+        if (!userImage) {
+            return res.status(400).json({ message: "User image is required" });
+        }
+
+        // Process image (e.g., upload to Cloudinary)
+        const uploadResponse = await cloudinary.uploader.upload(userImage, {
+            folder: `virtual-fitting/${req.user._id}/profile`,
+            resource_type: "image",
+        });
+
+        const userImageUrl = uploadResponse.secure_url;
+
+        // Create or update VirtualFitting profile
+        let virtualFitting = await VirtualFitting.findOne({ user: req.user._id });
+
+        if (virtualFitting) {
+            virtualFitting.userImage = userImageUrl;
+            virtualFitting.bodyMeasurements = measurements; //Save measurements
+        } else {
+            virtualFitting = await VirtualFitting.create({
+                user: req.user._id,
+                userImage: userImageUrl,
+                bodyMeasurements: measurements,  //Save measurements
+            });
+        }
+
+        await virtualFitting.save();
+
+        res.status(201).json({ message: "User photo uploaded", userImage: userImageUrl });
+
+    } catch (error) {
+        console.error("Error uploading user photo:", error);
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+/**
+ * @desc    Get user's virtual fitting profile
+ * @route   GET /api/virtual-fitting/profile
+ * @access  Private
+ */
+export const getVirtualFittingProfile = async (req, res) => {
+    try {
+        const virtualFitting = await VirtualFitting.findOne({ user: req.user._id });
+
+        if (!virtualFitting) {
+            return res.status(404).json({ message: "Virtual fitting profile not found" });
+        }
+
+        res.status(200).json(virtualFitting);
+
+    } catch (error) {
+        console.error("Error getting virtual fitting profile:", error);
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+/**
  * @desc    Try on a product virtually
  * @route   POST /api/virtual-fitting/try-on
  * @access  Private
@@ -48,7 +114,7 @@ export const tryOnProduct = async (req, res) => {
     const imageFile = req.file || (req.files && req.files.image);
 
     if (!imageFile && !virtualFitting.userImage) {
-      return res.status(400).json({ message: "User image is required. Please upload a photo first or include one in this request." });
+      return res.status(400).json({ message: "User image is required. Please upload a photo first." });
     }
 
     // Use the user's existing image if no new image is provided
@@ -248,6 +314,62 @@ export const tryOnProduct = async (req, res) => {
     console.error(error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
+};
+
+/**
+ * @desc    Get try-on history
+ * @route   GET /api/virtual-fitting/history
+ * @access  Private
+ */
+export const getTryOnHistory = async (req, res) => {
+    try {
+        const virtualFitting = await VirtualFitting.findOne({ user: req.user._id })
+            .populate('fittedProducts.product') // Populate the product details
+            .populate('fittedProducts.customDesign'); // Populate the customDesign details
+
+        if (!virtualFitting) {
+            return res.status(404).json({ message: "Virtual fitting profile not found" });
+        }
+
+        res.status(200).json(virtualFitting.fittedProducts);
+
+    } catch (error) {
+        console.error("Error getting try-on history:", error);
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+/**
+ * @desc    Delete try-on entry
+ * @route   DELETE /api/virtual-fitting/history/:entryId
+ * @access  Private
+ */
+export const deleteTryOnEntry = async (req, res) => {
+    try {
+        const { entryId } = req.params;
+
+        const virtualFitting = await VirtualFitting.findOne({ user: req.user._id });
+
+        if (!virtualFitting) {
+            return res.status(404).json({ message: "Virtual fitting profile not found" });
+        }
+
+        // Find the index of the try-on entry to delete
+        const entryIndex = virtualFitting.fittedProducts.findIndex(entry => entry._id.toString() === entryId);
+
+        if (entryIndex === -1) {
+            return res.status(404).json({ message: "Try-on entry not found" });
+        }
+
+        virtualFitting.fittedProducts.splice(entryIndex, 1);
+        await virtualFitting.save();
+
+        res.status(200).json({ message: "Try-on entry deleted successfully" });
+
+    } catch (error) {
+        console.error("Error deleting try-on entry:", error);
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
 };
 
 // Helper function to process uploaded image
