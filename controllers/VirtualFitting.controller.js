@@ -14,7 +14,7 @@ import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { loadProductModel } from "../services/loadProductModel.service.js";
 import { loadCustomDesignModel } from "../services/loadCustomDesignModel.service.js";
-import { renderTryOnImage } from "../services/renderTryOnImage.service.js";
+
 import { calculateFittingResult } from "../services/calculateFittingResult.service.js";
 import { calculateFittingResultForCustomDesign } from "../services/calculateFittingResultForCustomDesign.service.js";
 import { getSizeScale } from "../services/getSizeScale.service.js";
