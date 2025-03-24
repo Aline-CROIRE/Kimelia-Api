@@ -74,10 +74,10 @@ export const uploadUserPhoto = async (req, res) => {
  */
 export const getVirtualFittingProfile = async (req, res) => {
     try {
-        const virtualFitting = await VirtualFitting.findOne({ user: req.user._id });
+        let virtualFitting = await VirtualFitting.findOne({ user: req.user._id });
 
         if (!virtualFitting) {
-            return res.status(404).json({ message: "Virtual fitting profile not found" });
+          virtualFitting = await VirtualFitting.create({ user: req.user._id }); // Create profile if it doesn't exist
         }
 
         res.status(200).json(virtualFitting);
@@ -97,11 +97,11 @@ export const tryOnProduct = async (req, res) => {
   try {
     const { productId, customDesignId, size, color } = req.body;
 
-    // Get user's virtual fitting profile
-    const virtualFitting = await VirtualFitting.findOne({ user: req.user._id });
+    // Get user's virtual fitting profile OR CREATE ONE IF IT DOESN'T EXIST
+    let virtualFitting = await VirtualFitting.findOne({ user: req.user._id });
 
     if (!virtualFitting) {
-      return res.status(404).json({ message: "Virtual fitting profile not found. Please upload a photo first." });
+      virtualFitting = await VirtualFitting.create({ user: req.user._id }); // Create profile if it doesn't exist
     }
 
     let product = null;
@@ -113,8 +113,9 @@ export const tryOnProduct = async (req, res) => {
     // Check if we have an image file in the request
     const imageFile = req.file || (req.files && req.files.image);
 
+    // REQUIRE A USER IMAGE ONLY IF THERE IS NO EXISTING ONE IN THE PROFILE
     if (!imageFile && !virtualFitting.userImage) {
-      return res.status(400).json({ message: "User image is required. Please upload a photo first." });
+      return res.status(400).json({ message: "User image is required. Please upload a photo first or include one in this request." });
     }
 
     // Use the user's existing image if no new image is provided
