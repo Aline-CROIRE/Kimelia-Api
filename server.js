@@ -21,15 +21,10 @@ dotenv.config()
 const app = express()
 const PORT = process.env.PORT || 5000
 
-// Improved CORS configuration
-app.use(
-  cors({
-    origin: "*", // Allow all origins during development
-    methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
-    credentials: true,
-    allowedHeaders: "Content-Type,Authorization,X-Requested-With,Accept",
-  }),
-)
+
+
+app.use(cors({ origin: "http://localhost:3000", credentials: true }));
+
 
 // Handle preflight requests explicitly
 app.options("*", cors())
