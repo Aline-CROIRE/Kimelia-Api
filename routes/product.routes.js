@@ -7,8 +7,12 @@ import {
   deleteProduct,
   createProductReview,
   getTopProducts,
+  getSellerProducts,
+  getSellerStats,
+  deleteProductImage,
+  bulkUpdateProductStatus
 } from "../controllers/product.controller.js"
-import { protect, designer } from "../middlewares/auth.middleware.js"
+import { protect, designer, seller, admin } from "../middlewares/auth.middleware.js"
 
 const router = express.Router()
 
@@ -39,6 +43,11 @@ const router = express.Router()
  *         schema:
  *           type: string
  *         description: Filter by designer ID
+ *       - in: query
+ *         name: seller
+ *         schema:
+ *           type: string
+ *         description: Filter by seller ID
  *       - in: query
  *         name: minPrice
  *         schema:
@@ -81,13 +90,12 @@ const router = express.Router()
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             required:
  *               - name
  *               - price
- *               - images
  *               - category
  *             properties:
  *               name:
@@ -96,32 +104,30 @@ const router = express.Router()
  *                 type: string
  *               price:
  *                 type: number
- *               images:
- *                 type: array
- *                 items:
- *                   type: string
+ *               image:
+ *                 type: string
+ *                 format: binary
  *               category:
  *                 type: string
  *               tags:
- *                 type: array
- *                 items:
- *                   type: string
+ *                 type: string
+ *                 description: Comma-separated tags
  *               sizes:
- *                 type: array
- *                 items:
- *                   type: object
+ *                 type: string
+ *                 description: Comma-separated sizes
  *               colors:
- *                 type: array
- *                 items:
- *                   type: object
+ *                 type: string
+ *                 description: Comma-separated colors
  *               materials:
- *                 type: array
- *                 items:
- *                   type: string
+ *                 type: string
+ *                 description: Comma-separated materials
  *               isCustomizable:
  *                 type: boolean
  *               customizationOptions:
- *                 type: object
+ *                 type: string
+ *               designerId:
+ *                 type: string
+ *                 description: Optional designer ID if different from seller
  *     responses:
  *       201:
  *         description: Product created
@@ -130,7 +136,8 @@ const router = express.Router()
  *       403:
  *         description: Not authorized as a designer, seller, or admin
  */
-router.route("/").get(getProducts).post(protect, designer, createProduct)
+// Allow both designers and sellers to create products
+router.route("/").get(getProducts).post(protect, createProduct)
 
 /**
  * @swagger
@@ -176,7 +183,7 @@ router.get("/top", getTopProducts)
  *         description: Product ID
  *     requestBody:
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             properties:
@@ -186,32 +193,29 @@ router.get("/top", getTopProducts)
  *                 type: string
  *               price:
  *                 type: number
- *               images:
- *                 type: array
- *                 items:
- *                   type: string
+ *               image:
+ *                 type: string
+ *                 format: binary
  *               category:
  *                 type: string
  *               tags:
- *                 type: array
- *                 items:
- *                   type: string
+ *                 type: string
+ *                 description: Comma-separated tags
  *               sizes:
- *                 type: array
- *                 items:
- *                   type: object
+ *                 type: string
+ *                 description: Comma-separated sizes
  *               colors:
- *                 type: array
- *                 items:
- *                   type: object
+ *                 type: string
+ *                 description: Comma-separated colors
  *               materials:
- *                 type: array
- *                 items:
- *                   type: string
+ *                 type: string
+ *                 description: Comma-separated materials
  *               isCustomizable:
  *                 type: boolean
  *               customizationOptions:
- *                 type: object
+ *                 type: string
+ *               isActive:
+ *                 type: boolean
  *     responses:
  *       200:
  *         description: Product updated
@@ -243,6 +247,203 @@ router.get("/top", getTopProducts)
  *       404:
  *         description: Product not found
  */
-router.route("/:id").get(getProductById).put(protect, designer, updateProduct).delete(protect, designer, deleteProduct)
+router.route("/:id").get(getProductById).put(protect, updateProduct).delete(protect, deleteProduct)
 
+/**
+ * @swagger
+ * /api/products/{id}/reviews:
+ *   post:
+ *     summary: Create a product review
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Product ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - rating
+ *             properties:
+ *               rating:
+ *                 type: number
+ *                 minimum: 1
+ *                 maximum: 5
+ *               review:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Review added
+ *       400:
+ *         description: Product already reviewed
+ *       401:
+ *         description: Not authorized
+ *       404:
+ *         description: Product not found
+ */
+router.route("/:id/reviews").post(protect, createProductReview)
+
+/**
+ * @swagger
+ * /api/products/{id}/images/{imageIndex}:
+ *   delete:
+ *     summary: Delete a product image
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Product ID
+ *       - in: path
+ *         name: imageIndex
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: Index of the image to delete
+ *     responses:
+ *       200:
+ *         description: Image removed
+ *       400:
+ *         description: Invalid image index
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Not authorized to update this product
+ *       404:
+ *         description: Product not found
+ */
+router.route("/:id/images/:imageIndex").delete(protect, deleteProductImage)
+
+// Create a separate router for seller-specific endpoints
+const sellerRouter = express.Router()
+
+/**
+ * @swagger
+ * /api/sellers/products:
+ *   get:
+ *     summary: Get products for the authenticated seller
+ *     tags: [Sellers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *         description: Number of products per page
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Page number
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Filter by category
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by name or description
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [active, inactive]
+ *         description: Filter by product status
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *         description: Sort field
+ *       - in: query
+ *         name: order
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *         description: Sort order
+ *     responses:
+ *       200:
+ *         description: List of seller's products
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Not authorized as a seller
+ */
+sellerRouter.route("/products").get(protect, seller, getSellerProducts)
+
+/**
+ * @swagger
+ * /api/sellers/stats:
+ *   get:
+ *     summary: Get dashboard stats for the authenticated seller
+ *     tags: [Sellers]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Seller statistics
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Not authorized as a seller
+ */
+sellerRouter.route("/stats").get(protect, seller, getSellerStats)
+
+/**
+ * @swagger
+ * /api/sellers/products/bulk-status:
+ *   put:
+ *     summary: Bulk update product status
+ *     tags: [Sellers]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - productIds
+ *               - isActive
+ *             properties:
+ *               productIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of product IDs to update
+ *               isActive:
+ *                 type: boolean
+ *                 description: New status for the products
+ *     responses:
+ *       200:
+ *         description: Products updated
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Not authorized as a seller
+ *       404:
+ *         description: No matching products found
+ */
+sellerRouter.route("/products/bulk-status").put(protect, seller, bulkUpdateProductStatus)
+
+export { router as productRouter, sellerRouter }
+
+// For backward compatibility
 export default router
